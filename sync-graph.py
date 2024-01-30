@@ -288,6 +288,7 @@ def makeDetailGraphs() :
     diff = trace_df['time'].sub(sync_df['time'])
     acc = diff.cumsum()
 
+    # make it seconds from nano seconds.
     diff = diff / 1e9
     acc = acc / 1e9
 
