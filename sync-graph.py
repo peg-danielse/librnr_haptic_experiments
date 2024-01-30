@@ -133,16 +133,19 @@ def df_to_trace(filename : str, trace_df: pd.DataFrame) :
             file.write(line + "\n")
 
 def myFormatter(x, pos):
-       return pd.to_datetime(x).strftime('%M:%S.%f')[:-3]
+       return pd.to_datetime(x).strftime('%M:%S')
 
 def myFormatter2(x, pos):
-       return pd.to_datetime(x).strftime('%M:%S')
+       return pd.to_datetime(x).strftime('%S')
 
 def myFormatter3(x, pos):
        return pd.to_datetime(x).strftime('.%f')[:-3]
 
 def myFormatter4(x, pos):
        return pd.to_datetime(x).strftime('%S')
+
+def myFormatter5(x, pos):
+       return pd.to_datetime(x).strftime('%M')[1:]
 
 
 def makeFrameRateDf(path : str) -> pd.DataFrame :
@@ -188,71 +191,66 @@ def makeOverviewGraphs() :
 
     sns.set()
     sns.set_style("darkgrid")
-    # Create a figure with a narrow width
-    fig, (record_ax, replay_ax, sync_ax) = plt.subplots(nrows=3, ncols=1, figsize=(12, 8))
+    fig, (sync_ax, detail_ax) = plt.subplots(nrows=2, ncols=1, figsize=(6.5, 3.5))
+    
 
     sns.set_palette("deep")
     deep_palette = sns.color_palette("deep", 10)
 
     # Plot using Seaborn on the axes
-
     x1_limit = int(hostRec["elapsed"].iloc[-1].seconds) * 10**9
     x2_limit = int(hostRpl["elapsed"].iloc[-1].seconds) * 10**9
 
     x_limit = max(x1_limit, x2_limit)
 
-    sns.lineplot(ax=record_ax, data=hostRec, x="elapsed", y="Framerate")
-    record_ax.set_title('Recording of /user/hand/right/output/haptic and Framerate')
-    record_ax.set_xlim([0, x_limit])
-    record_ax.set_ylim([0, 80])
-    record_ax.set_xlabel("Time Elapsed")
+    sync_ax.set_title('/user/hand/right/output/haptic for record and replay overlaid')
+    sync_ax.set_xlim([0, x_limit])
+    sync_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter5))
 
-    sns.lineplot(ax=replay_ax, data=hostRpl, x="elapsed", y="Framerate")
-    replay_ax.set_title('Replay of /user/hand/right/output/haptic and Framerate')
-    replay_ax.set_xlim([0, x_limit])
-    replay_ax.set_ylim([0, 80])
-    replay_ax.set_xlabel("Time Elapsed")
+    detail_ax.set_xlim([39500000000, 43500000000])
+    detail_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter2))
+    
 
-    sync_ax.set_title('/user/hand/right/output/haptic for record and replay overlayed')
-    sync_ax.set_yticks([])
-    sync_ax.set_xlabel("Time Elapsed")
-
-    record_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter))
-    replay_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter))
-    sync_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter))
-
-    trace_df['time'] = trace_df['time'] - trace_df['time'].iloc[0] # first h should sync on: 31-12-2023_20-34-52, first k on: 31-12-2023_20-34-35
-    trace_df['time'] = trace_df['time'] + (hostRec[hostRec['dateTime'] == '2023-12-31 20:34:52'].iloc[0]['elapsed'].seconds * 10**9)
+    trace_df['time'] = trace_df['time'] - trace_df['time'].iloc[0]
 
     sync_df['time'] = sync_df['time'] - sync_df['time'].iloc[0]
-    sync_df['time'] = sync_df['time'] + (hostRpl[hostRpl['dateTime'] == '2023-12-31 20:55:03'].iloc[0]['elapsed'].seconds * 10**9)
+    sync_df = sync_df[sync_df['time'] <= sync_df['time'].iloc[-11] ]
 
     td = pd.Timedelta(1,'ns')
 
+    # sync_trace_df = trace_df
+    # sync_sync_df = sync_df
+    # sync_sync_df['time'] = sync_sync_df['time'] - sync_df['time'].iloc[0]
+    # sync_sync_df['time'] = sync_sync_df['time'] + sync_trace_df['time'].iloc[0]
+
+    # Sync
     for idx, row in trace_df.iterrows():
-        record_ax.axvline(x=row['time'], color=deep_palette[3], linestyle='dashed', linewidth=1.0)
+        sync_ax.axvline(x=row['time'], color=deep_palette[0], linestyle='solid', linewidth=1.0)
 
     for idx, row in sync_df.iterrows():
-        replay_ax.axvline(x=row['time'], color=deep_palette[3], linestyle='dashed', linewidth=1.0)
+        sync_ax.axvline(x=row['time'], color=deep_palette[1], linestyle='dashed', linewidth=1.0)
 
-    sync_trace_df = trace_df
-    sync_sync_df = sync_df
-    sync_sync_df['time'] = sync_sync_df['time'] - sync_df['time'].iloc[0]
-    sync_sync_df['time'] = sync_sync_df['time'] + sync_trace_df['time'].iloc[0]
+    # Detail
+    for idx, row in trace_df.iterrows():
+        detail_ax.axvline(x=row['time'], color=deep_palette[0], linestyle='solid', linewidth=1.0)
 
-    for idx, row in sync_trace_df.iterrows():
-        sync_ax.axvline(x=row['time'], color=deep_palette[1], linestyle='solid', linewidth=1.0)
+    for idx, row in sync_df.iterrows():
+        detail_ax.axvline(x=row['time'], color=deep_palette[1], linestyle='dashed', linewidth=1.0)
 
-    for idx, row in sync_sync_df.iterrows():
-        sync_ax.axvline(x=row['time'], color=deep_palette[4], linestyle='dashed', linewidth=1.0)
 
-    legend_elements = [Line2D([0], [0], color=deep_palette[0], lw=1, label='Framerate'),
-                    Line2D([0], [0], color=deep_palette[3], linestyle='dashed', label='HapticApply')]
 
-    legend_2_elements = [Line2D([0], [0], color=deep_palette[1], linestyle='solid', label='HapticApply-Record'),
-                        Line2D([0], [0], color=deep_palette[4], linestyle='dashed', label='HapticApply-Replay')]
+    legend_2_elements = [Line2D([0], [0], color=deep_palette[0], linestyle='solid', label='HapticApply-Record'),
+                         Line2D([0], [0], color=deep_palette[1], linestyle='dashed', label='HapticApply-Replay')]
+    
+    
 
-    record_ax.legend(handles=legend_elements, loc='best', framealpha=1.0)
+    sync_ax.set_xlabel("Elapsed time [M]")
+    detail_ax.set_xlabel("Elapsed time [S]")
+
+    sync_ax.set_yticks([])
+    detail_ax.set_yticks([])
+
+
     sync_ax.legend(handles=legend_2_elements, loc='best', framealpha=1.0)
 
     plt.tight_layout()
@@ -268,65 +266,45 @@ def makeDetailGraphs() :
     sns.set()
     sns.set_style("darkgrid")
 
-    fig, axs = plt.subplots(nrows=3, ncols= 1, figsize=(8, 8))
+    fig, (error_ax, cum_ax) = plt.subplots(nrows=2, ncols= 1, figsize=(7, 3.5))
 
-    # Create the first column of figures
-    record_ax = axs[0]
-    replay_ax = axs[1]
-    sync_ax = axs[2]
+
+    error_ax.set_title('Event error for record and replay overlaid')
+    cum_ax.set_title('Cumulative error for record and replay overlaid')
 
     sns.set_palette("deep")
     deep_palette = sns.color_palette("deep", 10)
-
-    record_ax.set_title('/user/hand/right/output/haptic data shape')
-    record_ax.set_yticks([])
-    record_ax.set_xlim([53000000000, 53200000000])
     
-    replay_ax.set_title('/user/hand/right/output/haptic overlayed data shape')
-    replay_ax.set_yticks([])
-    replay_ax.set_xlim([39500000000, 43500000000])
-    
-    sync_ax.set_title('/user/hand/right/output/haptic for the HapticStop event')
-    sync_ax.set_yticks([])
-    sync_ax.set_xlabel("Time Elapsed")
-    sync_ax.set_xlim([20000000000, 40000000000])
-
-    record_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter3))
-    replay_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter4))
-    sync_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter2))
+    error_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter5))
+    cum_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter5))
 
     trace_df['time'] = trace_df['time'] - trace_df['time'].iloc[0]
-
     sync_df['time'] = sync_df['time'] - sync_df['time'].iloc[0]
+    sync_df = sync_df[sync_df['time'] <= sync_df['time'].iloc[-11] ]
 
-    td = pd.Timedelta(1,'ns')
+    trace_df = trace_df.reset_index()
+    sync_df = sync_df.reset_index()
 
-    # Record detail
-    for idx, row in trace_df.iterrows():
-        record_ax.axvline(x=row['time'], color=deep_palette[3], linestyle='solid', linewidth=1.0)
+    diff = trace_df['time'].sub(sync_df['time'])
+    acc = diff.cumsum()
 
-    # Record and replay detail
-    for idx, row in trace_df.iterrows():
-        replay_ax.axvline(x=row['time'], color=deep_palette[3], linestyle='solid', linewidth=1.0)
+    diff = diff / 1e9
+    acc = acc / 1e9
 
-    for idx, row in sync_df.iterrows():
-        replay_ax.axvline(x=row['time'], color=deep_palette[4], linestyle='dashed', linewidth=1.0)
-    
-
-    # Record HapticStop
-    for idx, row in stop_df.iterrows():
-        sync_ax.axvline(x=row['time'], color=deep_palette[3], linestyle='dashed', linewidth=1.0)
+    sns.lineplot(y=diff, x=sync_df['time'], ax=error_ax)
+    sns.lineplot(y=acc, x=sync_df['time'], ax=cum_ax)
 
 
-    legend_elements = [Line2D([0], [0], color=deep_palette[3], linestyle='solid', label='HapticApply-record'),
-                       Line2D([0], [0], color=deep_palette[4], linestyle='dashed', label='HapticApply-replay')]
+    # error_ax.legend(handles=legend_2_elements, loc='best', framealpha=1.0)
 
-    legend_2_elements = [Line2D([0], [0], color=deep_palette[3], linestyle='dashed', label='HapticStop-record')]
+    error_ax.set_ylabel("Time [S]")
+    error_ax.set_xlabel("Elaped time [M]")
 
-    record_ax.legend(handles=legend_elements, loc='best', framealpha=1.0)
-    sync_ax.legend(handles=legend_2_elements, loc='lower right', framealpha=1.0)
+    cum_ax.set_xlabel("Elaped time [M]")
+    cum_ax.set_ylabel("Time [S]")
 
     plt.tight_layout()
     plt.savefig('./haptic_trace_rnr_detail.pdf')
 
+makeOverviewGraphs()
 makeDetailGraphs()
