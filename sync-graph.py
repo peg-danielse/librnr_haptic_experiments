@@ -285,6 +285,8 @@ def makeDetailGraphs() :
     trace_df = trace_df.reset_index()
     sync_df = sync_df.reset_index()
 
+    print(f"record:{len(trace_df)}, replay:{len(sync_df)}")
+
     diff = trace_df['time'].sub(sync_df['time'])
     acc = diff.cumsum()
 
