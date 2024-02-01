@@ -182,6 +182,8 @@ def prepTrace1(path : str) -> pd.DataFrame :
     
     return trace_df
 
+OUTLIER_EVENTS =  [1, 11, 15, 16, 26, 194, 317]
+OUTLIER_EVENTS_TRACE = [380, 407, 546]
 
 def makeOverviewGraphs() :  
     hostRec = makeFrameRateDf('./complete_2.0/record-HardwareMonitoring.txt')
@@ -191,30 +193,38 @@ def makeOverviewGraphs() :
 
     sns.set()
     sns.set_style("darkgrid")
-    fig, (sync_ax, detail_ax) = plt.subplots(nrows=2, ncols=1, figsize=(6.5, 3.5))
+    fig, (sync_ax, detail_ax) = plt.subplots(nrows=2, ncols=1, figsize=(7, 3.5))
     
 
     sns.set_palette("deep")
     deep_palette = sns.color_palette("deep", 10)
 
     # Plot using Seaborn on the axes
-    x1_limit = int(hostRec["elapsed"].iloc[-1].seconds) * 10**9
-    x2_limit = int(hostRpl["elapsed"].iloc[-1].seconds) * 10**9
+    x1_limit = int(hostRec["elapsed"].iloc[-1].seconds)
+    x2_limit = int(hostRpl["elapsed"].iloc[-1].seconds)
 
     x_limit = max(x1_limit, x2_limit)
 
     sync_ax.set_title('/user/hand/right/output/haptic for record and replay overlaid')
     sync_ax.set_xlim([0, x_limit])
-    sync_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter5))
 
-    detail_ax.set_xlim([39500000000, 43500000000])
-    detail_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter2))
+    detail_ax.set_xlim([39500000000/1e9, 43500000000/1e9])
+    # detail_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter2))
     
 
     trace_df['time'] = trace_df['time'] - trace_df['time'].iloc[0]
 
     sync_df['time'] = sync_df['time'] - sync_df['time'].iloc[0]
     sync_df = sync_df[sync_df['time'] <= sync_df['time'].iloc[-11] ]
+
+    trace_df = trace_df.reset_index()
+    sync_df = sync_df.reset_index()
+
+    for e in OUTLIER_EVENTS:
+        sync_df = sync_df.drop(e)
+
+    for e in OUTLIER_EVENTS_TRACE:
+        trace_df = trace_df.drop(e)
 
     td = pd.Timedelta(1,'ns')
 
@@ -225,17 +235,19 @@ def makeOverviewGraphs() :
 
     # Sync
     for idx, row in trace_df.iterrows():
-        sync_ax.axvline(x=row['time'], color=deep_palette[0], linestyle='solid', linewidth=1.0)
+        sync_ax.axvline(x=row['time']/1e9, color=deep_palette[0], linestyle='solid', linewidth=1.0)
+        # sync_ax.text(x=row['time'], y=0, s=str(idx))
 
     for idx, row in sync_df.iterrows():
-        sync_ax.axvline(x=row['time'], color=deep_palette[1], linestyle='dashed', linewidth=1.0)
+        sync_ax.axvline(x=row['time']/1e9, color=deep_palette[1], linestyle='dashed', linewidth=1.0)
+        # sync_ax.text(x=row['time'], y=1, s=str(idx))
 
     # Detail
     for idx, row in trace_df.iterrows():
-        detail_ax.axvline(x=row['time'], color=deep_palette[0], linestyle='solid', linewidth=1.0)
+        detail_ax.axvline(x=row['time']/1e9, color=deep_palette[0], linestyle='solid', linewidth=1.0)
 
     for idx, row in sync_df.iterrows():
-        detail_ax.axvline(x=row['time'], color=deep_palette[1], linestyle='dashed', linewidth=1.0)
+        detail_ax.axvline(x=row['time']/1e9, color=deep_palette[1], linestyle='dashed', linewidth=1.0)
 
 
 
@@ -244,8 +256,8 @@ def makeOverviewGraphs() :
     
     
 
-    sync_ax.set_xlabel("Elapsed time [M]")
-    detail_ax.set_xlabel("Elapsed time [S]")
+    sync_ax.set_xlabel("Elapsed time [s]")
+    detail_ax.set_xlabel("Elapsed time [s]")
 
     sync_ax.set_yticks([])
     detail_ax.set_yticks([])
@@ -255,7 +267,8 @@ def makeOverviewGraphs() :
 
     plt.tight_layout()
     plt.savefig('./haptic_trace_rnr_overview.pdf')
-
+    plt.show()
+    
 
 def makeDetailGraphs() :
     trace_df = prepTrace('complete_2.0/record-beat_saber_sync.txt', 'h', '/user/hand/right/output/haptic')
@@ -270,17 +283,24 @@ def makeDetailGraphs() :
 
 
     error_ax.set_title('Event error for record and replay overlaid')
-    cum_ax.set_title('Cumulative error for record and replay overlaid')
+    cum_ax.set_title('Cumulative absolute error for record and replay overlaid')
 
     sns.set_palette("deep")
     deep_palette = sns.color_palette("deep", 10)
-    
-    error_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter5))
-    cum_ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(myFormatter5))
 
     trace_df['time'] = trace_df['time'] - trace_df['time'].iloc[0]
     sync_df['time'] = sync_df['time'] - sync_df['time'].iloc[0]
     sync_df = sync_df[sync_df['time'] <= sync_df['time'].iloc[-11] ]
+
+    # data cleaning.
+    trace_df = trace_df.reset_index()
+    sync_df = sync_df.reset_index()
+
+    for e in OUTLIER_EVENTS:
+        sync_df = sync_df.drop(e)
+
+    for e in OUTLIER_EVENTS_TRACE:
+        trace_df = trace_df.drop(e)
 
     trace_df = trace_df.reset_index()
     sync_df = sync_df.reset_index()
@@ -288,26 +308,30 @@ def makeDetailGraphs() :
     print(f"record:{len(trace_df)}, replay:{len(sync_df)}")
 
     diff = trace_df['time'].sub(sync_df['time'])
-    acc = diff.cumsum()
+    acc = diff.abs().cumsum()
 
     # make it seconds from nano seconds.
     diff = diff / 1e9
     acc = acc / 1e9
 
-    sns.lineplot(y=diff, x=sync_df['time'], ax=error_ax)
-    sns.lineplot(y=acc, x=sync_df['time'], ax=cum_ax)
+    sns.lineplot(y=diff, x=sync_df['time']/ 1e9, ax=error_ax)
+    # Add a horizontal line at y=0
+    error_ax.axhline(y=0, color='black', linestyle='--', linewidth=1)
+    
+    sns.lineplot(y=acc, x=sync_df['time']/ 1e9, ax=cum_ax, color=deep_palette[1])
 
 
     # error_ax.legend(handles=legend_2_elements, loc='best', framealpha=1.0)
 
-    error_ax.set_ylabel("Time [S]")
-    error_ax.set_xlabel("Elaped time [M]")
+    error_ax.set_ylabel("Error [s]")
+    error_ax.set_xlabel("Elapsed time [s]")
 
-    cum_ax.set_xlabel("Elaped time [M]")
-    cum_ax.set_ylabel("Time [S]")
+    cum_ax.set_ylabel("Error [s]")
+    cum_ax.set_xlabel("Elapsed time [s]")
 
     plt.tight_layout()
     plt.savefig('./haptic_trace_rnr_detail.pdf')
+    # plt.show()
 
-makeOverviewGraphs()
 makeDetailGraphs()
+makeOverviewGraphs()
