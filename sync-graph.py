@@ -6,6 +6,8 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 import matplotlib as mpl
 import seaborn as sns
+from itertools import combinations, accumulate
+
 
 def trace_to_df(filename : str) -> pd.DataFrame:
     with open(filename, 'r') as file:
@@ -182,8 +184,63 @@ def prepTrace1(path : str) -> pd.DataFrame :
     
     return trace_df
 
-OUTLIER_EVENTS =  [1, 11, 15, 16, 26, 194, 317]
-OUTLIER_EVENTS_TRACE = [380, 407, 546]
+def identify_clusters(df, threshold):
+    clusters = []
+    current_cluster = [df.iloc[0]['time']]
+
+    for idx in range(1, len(df)):
+        # print(df.iloc[idx]['time'])
+        # print((df.iloc[idx]['time'] - df.iloc[idx - 1]['time']) / 1e9)
+        if (df.iloc[idx]['time'] - df.iloc[idx - 1]['time']) / 1e9 <= threshold:
+            current_cluster.append(df.iloc[idx]['time'])
+        else:
+            # If not within threshold, store the current cluster and start a new one
+            clusters.append(current_cluster)
+            current_cluster = [df.iloc[idx]['time']]
+    # Append the last cluster
+    clusters.append(current_cluster)
+
+    return clusters
+    
+def k_skip(a, b):
+    mindiff = float('inf')
+    min_list = []
+    for x in combinations(range(len(b)), abs(len(b) - len(a))):
+        skip_list = list(x)
+        total_difference = 0
+        ind_b = -1
+        for ind_a in range(0, len(a)):
+            ind_b += 1
+            while ind_b in skip_list:
+                ind_b += 1
+            total_difference += abs(a[ind_a] - b[ind_b])
+        if total_difference < mindiff:
+            mindiff = total_difference
+            min_list = skip_list[:]
+    return mindiff, min_list
+
+def determine_outliers(trace_df, sync_df):
+    threshold = 0.5
+    trace_bursts = identify_clusters(trace_df, threshold)
+    sync_bursts = identify_clusters(sync_df, threshold)
+
+    trace_offsets = list(accumulate(len(sublist) for sublist in trace_bursts))
+    trace_offsets.insert(0, 0)
+    sync_offsets = list(accumulate(len(sublist) for sublist in sync_bursts))
+    sync_offsets.insert(0, 0)
+    oe = []
+    oet = []
+    burst = -1
+    for a, b in zip(trace_bursts, sync_bursts):
+        burst += 1
+        if len(a) == len(b): continue
+        elif len(a) < len(b): oe = oe + [x+sync_offsets[burst] for x in k_skip(a, b)[1]]
+        else: oet = oet + [x+trace_offsets[burst] for x in k_skip(b, a)[1]]
+    
+    return oe, oet
+
+# OUTLIER_EVENTS =  [1, 11, 15, 16, 26, 194, 317]
+# OUTLIER_EVENTS_TRACE = [380, 407, 546]
 
 def makeOverviewGraphs() :  
     hostRec = makeFrameRateDf('./complete_2.0/record-HardwareMonitoring.txt')
@@ -220,6 +277,8 @@ def makeOverviewGraphs() :
     trace_df = trace_df.reset_index()
     sync_df = sync_df.reset_index()
 
+    OUTLIER_EVENTS, OUTLIER_EVENTS_TRACE = determine_outliers(trace_df, sync_df)
+
     for e in OUTLIER_EVENTS:
         sync_df = sync_df.drop(e)
 
@@ -233,6 +292,12 @@ def makeOverviewGraphs() :
     # sync_sync_df['time'] = sync_sync_df['time'] - sync_df['time'].iloc[0]
     # sync_sync_df['time'] = sync_sync_df['time'] + sync_trace_df['time'].iloc[0]
 
+
+        
+        # if len(a) == len(b) - 1:
+        #     print(find_optimal_element_to_remove(a, b))
+    # print(oe)
+    # print(oet)
     # Sync
     for idx, row in trace_df.iterrows():
         sync_ax.axvline(x=row['time']/1e9, color=deep_palette[0], linestyle='solid', linewidth=1.0)
@@ -243,11 +308,11 @@ def makeOverviewGraphs() :
         # sync_ax.text(x=row['time'], y=1, s=str(idx))
 
     # Detail
-    for idx, row in trace_df.iterrows():
-        detail_ax.axvline(x=row['time']/1e9, color=deep_palette[0], linestyle='solid', linewidth=1.0)
+    # for idx, row in trace_df.iterrows():
+    #     detail_ax.axvline(x=row['time']/1e9, color=deep_palette[0], linestyle='solid', linewidth=1.0)
 
-    for idx, row in sync_df.iterrows():
-        detail_ax.axvline(x=row['time']/1e9, color=deep_palette[1], linestyle='dashed', linewidth=1.0)
+    # for idx, row in sync_df.iterrows():
+    #     detail_ax.axvline(x=row['time']/1e9, color=deep_palette[1], linestyle='dashed', linewidth=1.0)
 
 
 
@@ -295,6 +360,8 @@ def makeDetailGraphs() :
     # data cleaning.
     trace_df = trace_df.reset_index()
     sync_df = sync_df.reset_index()
+
+    OUTLIER_EVENTS, OUTLIER_EVENTS_TRACE = determine_outliers(trace_df, sync_df)
 
     for e in OUTLIER_EVENTS:
         sync_df = sync_df.drop(e)
