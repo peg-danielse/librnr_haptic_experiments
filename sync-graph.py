@@ -263,6 +263,7 @@ def makeOverviewGraphs() :
     x_limit = max(x1_limit, x2_limit)
 
     sync_ax.set_title('/user/hand/right/output/haptic for record and replay overlaid')
+    # sync_ax.text(.5, .05, "a", ha='center')
     sync_ax.set_xlim([0, x_limit])
 
     detail_ax.set_xlim([39500000000/1e9, 43500000000/1e9])
@@ -292,12 +293,6 @@ def makeOverviewGraphs() :
     # sync_sync_df['time'] = sync_sync_df['time'] - sync_df['time'].iloc[0]
     # sync_sync_df['time'] = sync_sync_df['time'] + sync_trace_df['time'].iloc[0]
 
-
-        
-        # if len(a) == len(b) - 1:
-        #     print(find_optimal_element_to_remove(a, b))
-    # print(oe)
-    # print(oet)
     # Sync
     for idx, row in trace_df.iterrows():
         sync_ax.axvline(x=row['time']/1e9, color=deep_palette[0], linestyle='solid', linewidth=1.0)
@@ -308,11 +303,11 @@ def makeOverviewGraphs() :
         # sync_ax.text(x=row['time'], y=1, s=str(idx))
 
     # Detail
-    # for idx, row in trace_df.iterrows():
-    #     detail_ax.axvline(x=row['time']/1e9, color=deep_palette[0], linestyle='solid', linewidth=1.0)
+    for idx, row in trace_df.iterrows():
+        detail_ax.axvline(x=row['time']/1e9, color=deep_palette[0], linestyle='solid', linewidth=1.0)
 
-    # for idx, row in sync_df.iterrows():
-    #     detail_ax.axvline(x=row['time']/1e9, color=deep_palette[1], linestyle='dashed', linewidth=1.0)
+    for idx, row in sync_df.iterrows():
+        detail_ax.axvline(x=row['time']/1e9, color=deep_palette[1], linestyle='dashed', linewidth=1.0)
 
 
 
@@ -348,7 +343,7 @@ def makeDetailGraphs() :
 
 
     error_ax.set_title('Event error for record and replay overlaid')
-    cum_ax.set_title('Cumulative absolute error for record and replay overlaid')
+    cum_ax.set_title('Distribution of error for record and replay overlaid')
 
     sns.set_palette("deep")
     deep_palette = sns.color_palette("deep", 10)
@@ -375,26 +370,26 @@ def makeDetailGraphs() :
     print(f"record:{len(trace_df)}, replay:{len(sync_df)}")
 
     diff = trace_df['time'].sub(sync_df['time'])
-    acc = diff.abs().cumsum()
+    # acc = diff.abs()
 
     # make it seconds from nano seconds.
-    diff = diff / 1e9
-    acc = acc / 1e9
+    diff = diff / 1e6
+    # acc = acc / 1e6
 
     sns.lineplot(y=diff, x=sync_df['time']/ 1e9, ax=error_ax)
     # Add a horizontal line at y=0
     error_ax.axhline(y=0, color='black', linestyle='--', linewidth=1)
     
-    sns.lineplot(y=acc, x=sync_df['time']/ 1e9, ax=cum_ax, color=deep_palette[1])
+    sns.boxplot(x=diff, ax=cum_ax, color=deep_palette[1])
 
 
     # error_ax.legend(handles=legend_2_elements, loc='best', framealpha=1.0)
 
-    error_ax.set_ylabel("Error [s]")
+    error_ax.set_ylabel("Error [ms]")
     error_ax.set_xlabel("Elapsed time [s]")
 
-    cum_ax.set_ylabel("Error [s]")
-    cum_ax.set_xlabel("Elapsed time [s]")
+    cum_ax.set_xlabel("Error [ms]")
+    # cum_ax.set_ylabel("Elapsed time [s]")
 
     plt.tight_layout()
     plt.savefig('./haptic_trace_rnr_detail.pdf')
