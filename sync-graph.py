@@ -327,7 +327,7 @@ def makeOverviewGraphs() :
 
     plt.tight_layout()
     plt.savefig('./haptic_trace_rnr_overview.pdf')
-    plt.show()
+    # plt.show()
     
 
 def makeDetailGraphs() :
@@ -336,14 +336,53 @@ def makeDetailGraphs() :
 
     stop_df = prepTrace('complete_2.0/record-beat_saber_sync.txt', 'k', '/user/hand/right/output/haptic')
 
-    sns.set()
-    sns.set_style("darkgrid")
+    plt.rcParams['font.family'] = 'Arial'
+    custom_params = {"axes.spines.right": False, 
+                    "axes.spines.top": False,
+                    "axes.spines.left": True,
+                    "axes.spines.bottom": True,
+                    #create dashes next to ticks
+                    "xtick.bottom": True,
+                    "ytick.left": True,
+                    
+                    "axes.edgecolor": "black",
 
-    fig, (error_ax, cum_ax) = plt.subplots(nrows=2, ncols= 1, figsize=(7, 3.5))
+                    "axes.grid": True,
+                    "axes.linewidth": 1.5, 
+                    "axes.facecolor": "white", 
+                    "grid.color": "lightgray",
+                    
+                    }
 
+    sns.set_theme(style="whitegrid", rc=custom_params)
+    sns.set_palette("deep")
 
-    error_ax.set_title('Event error for record and replay overlaid')
-    cum_ax.set_title('Distribution of error for record and replay overlaid')
+    # sns.set()
+    # # sns.set_style("darkgrid")
+    # sns.set_theme(style="whitegrid", rc=custom_params, font_scale=1.5)
+
+    # fig, (error_ax, box_ax) = plt.subplots(nrows=2, ncols= 1, figsize=(7, 3.5), gridspec_kw={'height_ratios': [3, 1]})
+    # First Figure
+    fig1, error_ax = plt.subplots(figsize=(7, 1.5))
+    # error_ax.set_title('Event error for record and replay overlaid')
+
+    # Second Figure
+    fig2, box_ax = plt.subplots(figsize=(7, 0.3))
+    # box_ax.set_title('Distribution of error for record and replay overlaid')
+    error_ax.set_ylabel("Error [ms]")
+    error_ax.set_xlabel("Elapsed time [s]")
+
+    box_ax.tick_params(
+    axis='y',          # changes apply to the x-axis
+    which='both',      # both major and minor ticks are affected
+    left=False,      # ticks along the bottom edge are off
+    right=False,         # ticks along the top edge are off
+    labelbottom=False) # labels along the bottom edge are off
+    box_ax.set_xlabel("Error [ms]")
+    # box_ax.set_ylabel("Elapsed time [s]")
+
+    # error_ax.set_title('Event error for record and replay overlaid')
+    # box_ax.set_title('Distribution of error for record and replay overlaid')
 
     sns.set_palette("deep")
     deep_palette = sns.color_palette("deep", 10)
@@ -357,7 +396,8 @@ def makeDetailGraphs() :
     sync_df = sync_df.reset_index()
 
     OUTLIER_EVENTS, OUTLIER_EVENTS_TRACE = determine_outliers(trace_df, sync_df)
-
+    print(OUTLIER_EVENTS)
+    print(OUTLIER_EVENTS_TRACE)
     for e in OUTLIER_EVENTS:
         sync_df = sync_df.drop(e)
 
@@ -378,22 +418,23 @@ def makeDetailGraphs() :
 
     sns.lineplot(y=diff, x=sync_df['time']/ 1e9, ax=error_ax)
     # Add a horizontal line at y=0
-    error_ax.axhline(y=0, color='black', linestyle='--', linewidth=1)
-    
-    sns.boxplot(x=diff, ax=cum_ax, color=deep_palette[1])
+    error_ax.axhline(y=0, color='red', linestyle='--', linewidth=1)
 
+    sns.boxplot(x=diff, ax=box_ax, color=deep_palette[1])
+    box_ax.set_xlabel("Error [ms]")
+    plt.show()
 
     # error_ax.legend(handles=legend_2_elements, loc='best', framealpha=1.0)
 
     error_ax.set_ylabel("Error [ms]")
     error_ax.set_xlabel("Elapsed time [s]")
 
-    cum_ax.set_xlabel("Error [ms]")
-    # cum_ax.set_ylabel("Elapsed time [s]")
+    box_ax.set_xlabel("Error [ms]")
+    # box_ax.set_ylabel("Elapsed time [s]")
 
     plt.tight_layout()
     plt.savefig('./haptic_trace_rnr_detail.pdf')
     # plt.show()
 
 makeDetailGraphs()
-makeOverviewGraphs()
+# makeOverviewGraphs()
